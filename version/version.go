@@ -9,6 +9,11 @@ type Version struct {
 	Release ReleaseType // MongoDB Release
 }
 
+type Location struct {
+	Filename  string // Filename for tarball corresponding to Version
+	URLPrefix string // URL prefix to fetch the tarball from MongoDB
+}
+
 type ReleaseType struct {
 	Version    int
 	Major      int
@@ -42,11 +47,11 @@ var validDistro = [...]DistroType{
 const enterpriseUrlPrefix = "https://downloads.mongodb.com/"
 const communityUrlPrefix = "https://fastdl.mongodb.org/"
 
-// Get filename for a Version
-func (v *Version) ToFilename() (string, error) {
+// Get filename and URL prefix for a Version
+func (v *Version) ToLocation() (*Location, error) {
 	err := v.Validate()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	// Filetype is tgz except for Windows which is zip
 	ft := "tgz"
@@ -64,36 +69,20 @@ func (v *Version) ToFilename() (string, error) {
 	if v.Release.Enterprise {
 		ent = "-enterprise"
 	}
-	return "mongodb-" + string(v.OS) + "-" + string(v.Arch) + ent + dist + rel, nil
-}
-
-// Get directory for a Version
-func (v *Version) ToDirectory() (string, error) {
-	err := v.Validate()
-	if err != nil {
-		return "", err
-	}
+	fn := "mongodb-" + string(v.OS) + "-" + string(v.Arch) + ent + dist + rel
+	dir := string(v.OS) + "/"
 	if v.OS == "macos" {
-		return "osx/", nil
+		dir = "osx/"
 	}
-	return string(v.OS) + "/", nil
-}
 
-// Get URL for a Version
-func (v *Version) ToURL() (string, error) {
-	dir, err := v.ToDirectory()
-	if err != nil {
-		return "", err
-	}
-	fn, err := v.ToFilename()
-	if err != nil {
-		return "", err
-	}
 	prefix := communityUrlPrefix
 	if v.Release.Enterprise {
 		prefix = enterpriseUrlPrefix
 	}
-	return prefix + dir + fn, nil
+	return &Location{
+		Filename:  fn,
+		URLPrefix: prefix + dir,
+	}, nil
 }
 
 // Validate a Version

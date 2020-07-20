@@ -2,14 +2,14 @@ package main
 
 import (
 	"fmt"
+	"github.com/SpencerBrown/get-mongodb/get"
 	"github.com/SpencerBrown/get-mongodb/version"
-	"io"
 	"log"
-	"net/http"
-	"os"
 	"os/user"
 	"path/filepath"
 )
+
+const binaryPath = "mongodb-binaries"
 
 func main() {
 	myVersion := version.Version{
@@ -18,49 +18,30 @@ func main() {
 		Distro:  "",
 		Release: version.ReleaseType{Version: 4, Major: 2, Minor: 8, Enterprise: true},
 	}
-	user, err := user.Current()
+	thisUser, err := user.Current()
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
-	myLocation := filepath.Join(user.HomeDir, "mongodb-binaries")
+	myPath := filepath.Join(thisUser.HomeDir, binaryPath)
 
-	URL, err := myVersion.ToURL()
+	myLocation, err := myVersion.ToLocation()
 	if err != nil {
-		log.Fatalf("Error getting URL: %v\n", err)
+		log.Fatalf("Error getting location: %v\n", err)
 	}
-	fn, err := myVersion.ToFilename()
+	myURL := myLocation.URLPrefix + myLocation.Filename
+	myPath = filepath.Join(thisUser.HomeDir, binaryPath, myLocation.Filename)
+	err = get.DownloadFile(myPath, myURL, 60)
 	if err != nil {
-		log.Fatalf("Error getting filename: %v\n", err)
-	}
-	err = DownloadFile(filepath.Join(myLocation, fn), URL)
-	if err != nil {
-		log.Fatalf("Error downloading from URL %s: %v\n", URL, err)
+		log.Fatalf("Error downloading from URL %s: %v\n", myURL, err)
 	} else {
-		fmt.Printf("Successfully downloaded from URL %s\n", URL)
+		fmt.Printf("Successfully downloaded %s from URL %s\n", myPath, myURL)
 	}
+
+	listVersions()
 }
 
 // https://downloads.mongodb.com/osx/mongodb-macos-x86_64-enterprise-4.2.8.tgz
 
-// DownloadFile will download a url to a local file. It's efficient because it will
-// write as it downloads and not load the whole file into memory.
-func DownloadFile(filepath string, url string) error {
+func listVersions() {
 
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
 }
