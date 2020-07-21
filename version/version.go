@@ -1,6 +1,10 @@
 package version
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 type Version struct {
 	Arch    ArchType    // hardware platform
@@ -33,7 +37,7 @@ type DistroType string
 
 var validDistro = [...]DistroType{
 	// Linux distros
-	"anzn64", "amazon2",
+	"amzn64", "amazon2",
 	"debian71", "debian81", "debian92", "debian10",
 	"rhel57", "rhel62", "rhel67", "rhel70", "rhel71", "rhel72",
 	"suse11", "suse12", "suse15",
@@ -83,6 +87,83 @@ func (v *Version) ToLocation() (*Location, error) {
 		Filename:  fn,
 		URLPrefix: prefix + dir,
 	}, nil
+}
+
+// Convert filename to Version
+func ToVersion(fn string) (*Version, error) {
+	// Filename elements ,separated by dashes:
+	/*
+		"mongodb"
+		OS
+		Arch
+		"enterprise" (missing if Community version)
+		Distro (missing for macOS, "windows-64" for Windows)
+		release (e.g. 4.2.8.tgz)
+	*/
+	elements := strings.Split(fn, "-")
+	n := len(elements)
+	if (n < 4) || (n > 7) {
+		return nil, fmt.Errorf("fn '%s' invalid, too few or too many elements", fn)
+	}
+	if elements[0] != "mongodb" {
+		return nil, fmt.Errorf("fn '%s' invalid, does not start with 'mongodb'", fn)
+	}
+	thisVersion := new(Version)
+	thisVersion.OS = OSType(elements[1])
+	thisVersion.Arch = ArchType(elements[2])
+	elements = elements[3:]
+	if elements[0] == "enterprise" {
+		thisVersion.Release.Enterprise = true
+		if len(elements) <= 1 {
+			return nil, fmt.Errorf("fn '%s' invalid, nothing after 'enterprise'", fn)
+		}
+		elements = elements[1:]
+	}
+	if thisVersion.OS == "linux" {
+		thisVersion.Distro = DistroType(elements[0])
+		if len(elements) != 2 {
+			return nil, fmt.Errorf("fn '%s' invalid, nothing after Linux distro", fn)
+		}
+		elements = elements[1:]
+	}
+	if thisVersion.OS == "win32" {
+		// Distro must be "windows", "64"
+		if (len(elements) != 3) || (elements[0] != "windows") || (elements[1] != "64") {
+			return nil, fmt.Errorf("fn '%s' invalid, Windows must be windows-64 distro", fn)
+		}
+		thisVersion.Distro = "windows-64"
+		elements = elements[2:]
+	}
+	rel := strings.Split(elements[0], ".") // "x.y.z.ft"
+	if len(rel) != 4 {
+		return nil, fmt.Errorf("fn '%s' invalid, release must have 4 elements", fn)
+	}
+	ft := rel[3]
+	if thisVersion.OS == "win32" {
+		if ft != "zip" {
+			return nil, fmt.Errorf("fn '%s': Windows filetype must be 'zip'", fn)
+		}
+	} else {
+		if ft != "tgz" {
+			return nil, fmt.Errorf("fn '%s': non-Windows filetype must be 'tgz'", fn)
+		}
+	}
+	var r [3]int
+	var err error
+	for i := 0; i < 3; i++ {
+		r[i], err = strconv.Atoi(rel[i])
+		if err != nil {
+			return nil, fmt.Errorf("fn '%s' invalid, non-numeric release numbers", fn)
+		}
+	}
+	thisVersion.Release.Version = r[0]
+	thisVersion.Release.Major = r[1]
+	thisVersion.Release.Minor = r[2]
+	err = thisVersion.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("fn '%s' invalid: %v", fn, err)
+	}
+	return thisVersion, nil
 }
 
 // Validate a Version

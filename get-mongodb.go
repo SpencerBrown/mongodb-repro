@@ -23,7 +23,6 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 	myPath := filepath.Join(thisUser.HomeDir, binaryPath)
-
 	myLocation, err := myVersion.ToLocation()
 	if err != nil {
 		log.Fatalf("Error getting location: %v\n", err)
@@ -36,6 +35,9 @@ func main() {
 	} else {
 		fmt.Printf("Successfully downloaded %s from URL %s\n", myPath, myURL)
 	}
+
+	myVersion2, err := version.ToVersion(myLocation.Filename)
+	fmt.Println(myVersion2)
 
 	listVersions()
 }

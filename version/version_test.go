@@ -1,6 +1,9 @@
 package version
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 /*
 https://downloads.mongodb.com/linux/mongodb-linux-x86_64-enterprise-amazon2-4.2.5.tgz
@@ -29,6 +32,7 @@ https://downloads.mongodb.com/linux/mongodb-linux-x86_64-enterprise-amzn64-3.6.1
 https://downloads.mongodb.com/linux/mongodb-linux-x86_64-enterprise-amzn64-3.4.24.tgz
 
 https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1604-4.2.5.tgz
+https://fastdl.mongodb.org/osx/mongodb-macos-x86_64-4.2.8.tgz
 
 */
 
@@ -69,6 +73,12 @@ func TestVersion_ToLocation(t *testing.T) {
 			Location{Filename: "mongodb-linux-x86_64-ubuntu1604-4.2.5.tgz", URLPrefix: "https://fastdl.mongodb.org/linux/"},
 			false,
 		},
+		{
+			"mac/community",
+			fields{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
+			Location{Filename: "mongodb-macos-x86_64-4.2.8.tgz", URLPrefix: "https://fastdl.mongodb.org/osx/"},
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -79,12 +89,125 @@ func TestVersion_ToLocation(t *testing.T) {
 				Release: tt.fields.release,
 			}
 			got, err := v.ToLocation()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ToLocation() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			if err == nil {
+				if tt.wantErr {
+					t.Errorf("ToLocation(): Version %v: Wanted error, got none", v)
+				} else {
+					if (got == nil) || (got.Filename != tt.want.Filename) || (got.URLPrefix != tt.want.URLPrefix) {
+						t.Errorf("ToLocation(): got %v, wanted %v", got, tt.want)
+					}
+				}
+			} else {
+				if !tt.wantErr {
+					t.Errorf("ToLocation(): Version: %v, got unwanted error %v", v, err)
+				}
 			}
-			if (got.Filename != tt.want.Filename) || (got.URLPrefix != tt.want.URLPrefix) {
-				t.Errorf("ToLocation() got = %v, want %v", got, tt.want)
+		})
+	}
+}
+
+func TestVersion_ToVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		fn      string
+		want    Version
+		wantErr bool
+	}{
+		{
+			name:    "windows",
+			fn:      "mongodb-win32-x86_64-enterprise-windows-64-4.2.5.zip",
+			want:    Version{Arch: "x86_64", OS: "win32", Distro: "windows-64", Release: ReleaseType{Version: 4, Major: 2, Minor: 5, Enterprise: true}},
+			wantErr: false,
+		},
+		{
+			name:    "mac",
+			fn:      "mongodb-macos-x86_64-enterprise-4.2.5.tgz",
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 5, true}},
+			wantErr: false,
+		},
+		{
+			name:    "linux",
+			fn:      "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5.tgz",
+			want:    Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			wantErr: false,
+		},
+		{
+			name:    "linux/community",
+			fn:      "mongodb-linux-x86_64-ubuntu1604-4.2.5.tgz",
+			want:    Version{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, false}},
+			wantErr: false,
+		},
+		{
+			name:    "mac/community",
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
+			fn:      "mongodb-macos-x86_64-4.2.8.tgz",
+			wantErr: false,
+		},
+		{
+			name:    "nomongo",
+			fn:      "mangodb-foo-bar-what-ever",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badArch",
+			fn:      "mongodb-macos-x86_65-4.2.8.tgz",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badOS",
+			fn:      "mongodb-macosh-x86_64-4.2.8.tgz",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badenterprise",
+			fn:      "mongodb-linux-s390x-enterprize-ubuntu1804-4.2.5.tgz",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badwindistro",
+			fn:      "mongodb-win32-x86_64-enterprise-windoes-64-4.2.5.zip",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badmajor",
+			fn:      "mongodb-win32-x86_64-enterprise-windows-64-4.two.5.zip",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badzip",
+			fn:      "mongodb-win32-x86_64-enterprise-windows-64-4.2.5.tgz",
+			want:    Version{},
+			wantErr: true,
+		},
+		{
+			name:    "badtgz",
+			fn:      "mongodb-linux-x86_64-enterprise-amzn64-3.6.17.zip",
+			want:    Version{},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ToVersion(tt.fn)
+			fmt.Println(got, err)
+			if err == nil {
+				if tt.wantErr {
+					t.Errorf("ToVersion(): fn: %v: wanted error, got none", tt.fn)
+				} else {
+					if got == nil || got.OS != tt.want.OS || got.Arch != tt.want.Arch || got.Distro != tt.want.Distro || got.Release.Version != tt.want.Release.Version || got.Release.Major != tt.want.Release.Major || got.Release.Minor != tt.want.Release.Minor || got.Release.Enterprise != tt.want.Release.Enterprise {
+						t.Errorf("ToVersion(): got %v, wanted %v", got, tt.want)
+					}
+				}
+			} else {
+				if !tt.wantErr {
+					t.Errorf("ToVersion(): fn '%v': got unwanted error %v", tt.fn, err)
+				}
 			}
 		})
 	}
@@ -141,10 +264,15 @@ func TestVersion_Validate(t *testing.T) {
 				Distro:  tt.fields.distro,
 				Release: tt.fields.release,
 			}
-			if err := v.Validate(); (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			err := v.Validate()
+			if err == nil {
+				if tt.wantErr {
+					t.Errorf("Validate(): wanted error, got none: %v", v)
+				}
 			} else {
-				t.Log(err)
+				if !tt.wantErr {
+					t.Errorf("Validate(): got unwanted error %v on %v", err, v)
+				}
 			}
 		})
 	}
