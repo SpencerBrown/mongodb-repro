@@ -28,8 +28,8 @@ func main() {
 		log.Fatalf("Error getting location: %v\n", err)
 	}
 	myURL := myLocation.URLPrefix + myLocation.Filename
-	myPath = filepath.Join(thisUser.HomeDir, binaryPath, myLocation.Filename)
-	err = get.DownloadFile(myPath, myURL, 60)
+	//myPath = filepath.Join(thisUser.HomeDir, binaryPath, myLocation.Filename)
+	err = get.DownloadArchive(myPath, myURL, 60)
 	if err != nil {
 		log.Fatalf("Error downloading from URL %s: %v\n", myURL, err)
 	} else {
