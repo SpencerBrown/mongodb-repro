@@ -14,8 +14,9 @@ type Version struct {
 }
 
 type Location struct {
-	Filename  string // Filename for tarball corresponding to Version
+	Filename  string // Filename for directory containing version's download
 	URLPrefix string // URL prefix to fetch the tarball from MongoDB
+	URLSuffix string // URL suffix (".tgz", ."zip") for the tarball
 }
 
 type ReleaseType struct {
@@ -57,12 +58,7 @@ func (v *Version) ToLocation() (*Location, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Filetype is tgz except for Windows which is zip
-	ft := "tgz"
-	if v.OS == "win32" {
-		ft = "zip"
-	}
-	rel := fmt.Sprintf("-%d.%d.%d.%s", v.Release.Version, v.Release.Major, v.Release.Minor, ft)
+	rel := fmt.Sprintf("-%d.%d.%d", v.Release.Version, v.Release.Major, v.Release.Minor)
 	// Add Distro if there is one
 	dist := ""
 	if v.Distro != "" {
@@ -83,9 +79,15 @@ func (v *Version) ToLocation() (*Location, error) {
 	if v.Release.Enterprise {
 		prefix = enterpriseUrlPrefix
 	}
+	// Suffix is .tgz except for Windows which is .zip
+	suffix := ".tgz"
+	if v.OS == "win32" {
+		suffix = ".zip"
+	}
 	return &Location{
 		Filename:  fn,
 		URLPrefix: prefix + dir,
+		URLSuffix: suffix,
 	}, nil
 }
 
@@ -98,7 +100,7 @@ func ToVersion(fn string) (*Version, error) {
 		Arch
 		"enterprise" (missing if Community version)
 		Distro (missing for macOS, "windows-64" for Windows)
-		release (e.g. 4.2.8.tgz)
+		release (e.g. 4.2.8.tgz; will also work without the extension)
 	*/
 	elements := strings.Split(fn, "-")
 	n := len(elements)
@@ -134,26 +136,29 @@ func ToVersion(fn string) (*Version, error) {
 		thisVersion.Distro = "windows-64"
 		elements = elements[2:]
 	}
-	rel := strings.Split(elements[0], ".") // "x.y.z.ft"
-	if len(rel) != 4 {
-		return nil, fmt.Errorf("fn '%s' invalid, release must have 4 elements", fn)
+	rel := strings.Split(elements[0], ".") // "x.y.z.ft" or "x.y.z"
+	if len(rel) == 4 {
+		ft := rel[3]
+		rel = rel[:3]
+		if thisVersion.OS == "win32" {
+			if ft != "zip" {
+				return nil, fmt.Errorf("fn '%s': Windows filetype must be 'zip'", fn)
+			}
+		} else {
+			if ft != "tgz" {
+				return nil, fmt.Errorf("fn '%s': non-Windows filetype must be 'tgz'", fn)
+			}
+		}
 	}
-	ft := rel[3]
-	if thisVersion.OS == "win32" {
-		if ft != "zip" {
-			return nil, fmt.Errorf("fn '%s': Windows filetype must be 'zip'", fn)
-		}
-	} else {
-		if ft != "tgz" {
-			return nil, fmt.Errorf("fn '%s': non-Windows filetype must be 'tgz'", fn)
-		}
+	if len(rel) != 3 {
+		return nil, fmt.Errorf("fn '%s' invalid, release must have 3 elements", fn)
 	}
 	var r [3]int
 	var err error
 	for i := 0; i < 3; i++ {
 		r[i], err = strconv.Atoi(rel[i])
 		if err != nil {
-			return nil, fmt.Errorf("fn '%s' invalid, non-numeric release numbers", fn)
+			return nil, fmt.Errorf("fn '%s' invalid, release must be numeric", fn)
 		}
 	}
 	thisVersion.Release.Version = r[0]

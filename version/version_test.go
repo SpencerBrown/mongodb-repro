@@ -52,31 +52,31 @@ func TestVersion_ToLocation(t *testing.T) {
 		{
 			"windows",
 			fields{"x86_64", "win32", "windows-64", ReleaseType{4, 2, 5, true}},
-			Location{Filename: "mongodb-win32-x86_64-enterprise-windows-64-4.2.5.zip", URLPrefix: "https://downloads.mongodb.com/win32/"},
+			Location{Filename: "mongodb-win32-x86_64-enterprise-windows-64-4.2.5", URLSuffix: ".zip", URLPrefix: "https://downloads.mongodb.com/win32/"},
 			false,
 		},
 		{
 			"mac",
 			fields{"x86_64", "macos", "", ReleaseType{4, 2, 5, true}},
-			Location{Filename: "mongodb-macos-x86_64-enterprise-4.2.5.tgz", URLPrefix: "https://downloads.mongodb.com/osx/"},
+			Location{Filename: "mongodb-macos-x86_64-enterprise-4.2.5", URLPrefix: "https://downloads.mongodb.com/osx/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"linux",
 			fields{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
-			Location{Filename: "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5.tgz", URLPrefix: "https://downloads.mongodb.com/linux/"},
+			Location{Filename: "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5", URLPrefix: "https://downloads.mongodb.com/linux/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"linux/community",
 			fields{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, false}},
-			Location{Filename: "mongodb-linux-x86_64-ubuntu1604-4.2.5.tgz", URLPrefix: "https://fastdl.mongodb.org/linux/"},
+			Location{Filename: "mongodb-linux-x86_64-ubuntu1604-4.2.5", URLPrefix: "https://fastdl.mongodb.org/linux/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"mac/community",
 			fields{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
-			Location{Filename: "mongodb-macos-x86_64-4.2.8.tgz", URLPrefix: "https://fastdl.mongodb.org/osx/"},
+			Location{Filename: "mongodb-macos-x86_64-4.2.8", URLPrefix: "https://fastdl.mongodb.org/osx/", URLSuffix: ".tgz"},
 			false,
 		},
 	}
@@ -121,7 +121,7 @@ func TestVersion_ToVersion(t *testing.T) {
 		},
 		{
 			name:    "mac",
-			fn:      "mongodb-macos-x86_64-enterprise-4.2.5.tgz",
+			fn:      "mongodb-macos-x86_64-enterprise-4.2.5",
 			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 5, true}},
 			wantErr: false,
 		},
@@ -133,7 +133,7 @@ func TestVersion_ToVersion(t *testing.T) {
 		},
 		{
 			name:    "linux/community",
-			fn:      "mongodb-linux-x86_64-ubuntu1604-4.2.5.tgz",
+			fn:      "mongodb-linux-x86_64-ubuntu1604-4.2.5",
 			want:    Version{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, false}},
 			wantErr: false,
 		},
@@ -214,64 +214,67 @@ func TestVersion_ToVersion(t *testing.T) {
 }
 
 func TestVersion_Validate(t *testing.T) {
-	type fields struct {
-		arch    ArchType
-		os      OSType
-		distro  DistroType
-		release ReleaseType
-	}
 	tests := []struct {
 		name    string
-		fields  fields
+		v       Version
 		wantErr bool
 	}{
 		{
+			name: "good",
+			v: Version{
+				Arch:   "x86_64",
+				OS:     "linux",
+				Distro: "amazon2",
+				Release: ReleaseType{
+					Version:    3,
+					Major:      6,
+					Minor:      12,
+					Enterprise: false,
+				},
+			},
+			wantErr: false,
+		},
+		{
 			"bad Arch",
-			fields{"foobar", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			Version{"foobar", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
 			true,
 		},
 		{
 			"bad OS",
-			fields{"s390x", "foobar", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			Version{"s390x", "foobar", "ubuntu1804", ReleaseType{4, 2, 5, true}},
 			true,
 		},
 		{
 			"bad Distro",
-			fields{"s390x", "linux", "foobar", ReleaseType{4, 2, 5, true}},
+			Version{"s390x", "linux", "foobar", ReleaseType{4, 2, 5, true}},
 			true,
 		},
 		{
 			"bad Version",
-			fields{"s390x", "linux", "ubuntu1804", ReleaseType{42, 2, 5, true}},
+			Version{"s390x", "linux", "ubuntu1804", ReleaseType{42, 2, 5, true}},
 			true,
 		},
 		{
 			"bad Major",
-			fields{"s390x", "linux", "ubuntu1804", ReleaseType{4, 42, 5, true}},
+			Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 42, 5, true}},
 			true,
 		},
 		{
 			"bad minor",
-			fields{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 42, true}},
+			Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 42, true}},
 			true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v := &Version{
-				Arch:    tt.fields.arch,
-				OS:      tt.fields.os,
-				Distro:  tt.fields.distro,
-				Release: tt.fields.release,
-			}
-			err := v.Validate()
+			err := tt.v.Validate()
 			if err == nil {
 				if tt.wantErr {
-					t.Errorf("Validate(): wanted error, got none: %v", v)
+					t.Errorf("Validate(): wanted error, got none: %v", tt.v)
 				}
 			} else {
 				if !tt.wantErr {
-					t.Errorf("Validate(): got unwanted error %v on %v", err, v)
+					t.Errorf("Validate(): got unwanted error %v on %v", err, tt.v)
 				}
 			}
 		})

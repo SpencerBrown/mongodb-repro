@@ -27,13 +27,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error getting location: %v\n", err)
 	}
-	myURL := myLocation.URLPrefix + myLocation.Filename
+	myURL := myLocation.URLPrefix + myLocation.Filename + myLocation.URLSuffix
 	//myPath = filepath.Join(thisUser.HomeDir, binaryPath, myLocation.Filename)
 	err = get.DownloadArchive(myPath, myURL, 60)
 	if err != nil {
 		log.Fatalf("Error downloading from URL %s: %v\n", myURL, err)
 	} else {
-		fmt.Printf("Successfully downloaded %s from URL %s\n", myPath, myURL)
+		fmt.Printf("Successfully downloaded to %s from URL %s\n", myPath, myURL)
 	}
 
 	myVersion2, err := version.ToVersion(myLocation.Filename)
