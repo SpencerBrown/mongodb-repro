@@ -16,7 +16,7 @@ func main() {
 		Arch:    "x86_64",
 		OS:      "macos",
 		Distro:  "",
-		Release: version.ReleaseType{Version: 4, Major: 2, Minor: 8, Enterprise: true},
+		Release: version.ReleaseType{Version: 4, Major: 2, Minor: 10, Enterprise: true},
 	}
 	thisUser, err := user.Current()
 	if err != nil {

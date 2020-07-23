@@ -171,6 +171,9 @@ func Download(url string, timeout int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP status '%s' downloading '%s'", resp.Status, url)
+	}
 
 	// Copy the data to memory (byte slice)
 	content, err := ioutil.ReadAll(resp.Body)
