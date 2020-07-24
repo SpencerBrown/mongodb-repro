@@ -1,7 +1,6 @@
 package version
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -33,6 +32,8 @@ https://downloads.mongodb.com/linux/mongodb-linux-x86_64-enterprise-amzn64-3.4.2
 
 https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1604-4.2.5.tgz
 https://fastdl.mongodb.org/osx/mongodb-macos-x86_64-4.2.8.tgz
+https://fastdl.mongodb.org/osx/mongodb-osx-ssl-x86_64-4.0.19.tgz
+https://downloads.mongodb.com/osx/mongodb-osx-x86_64-enterprise-4.0.19.tgz
 
 */
 
@@ -62,6 +63,12 @@ func TestVersion_ToLocation(t *testing.T) {
 			false,
 		},
 		{
+			"mac40",
+			fields{"x86_64", "macos", "", ReleaseType{4, 0, 19, true}},
+			Location{Filename: "mongodb-osx-x86_64-enterprise-4.0.19", URLPrefix: "https://downloads.mongodb.com/osx/", URLSuffix: ".tgz"},
+			false,
+		},
+		{
 			"linux",
 			fields{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
 			Location{Filename: "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5", URLPrefix: "https://downloads.mongodb.com/linux/", URLSuffix: ".tgz"},
@@ -77,6 +84,12 @@ func TestVersion_ToLocation(t *testing.T) {
 			"mac/community",
 			fields{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
 			Location{Filename: "mongodb-macos-x86_64-4.2.8", URLPrefix: "https://fastdl.mongodb.org/osx/", URLSuffix: ".tgz"},
+			false,
+		},
+		{
+			"mac40/community",
+			fields{"x86_64", "macos", "", ReleaseType{4, 0, 19, false}},
+			Location{Filename: "mongodb-osx-ssl-x86_64-4.0.19", URLPrefix: "https://fastdl.mongodb.org/osx/", URLSuffix: ".tgz"},
 			false,
 		},
 	}
@@ -126,6 +139,12 @@ func TestVersion_ToVersion(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "mac40",
+			fn:      "mongodb-osx-x86_64-enterprise-4.0.19.tgz",
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 0, 19, true}},
+			wantErr: false,
+		},
+		{
 			name:    "linux",
 			fn:      "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5.tgz",
 			want:    Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
@@ -141,6 +160,12 @@ func TestVersion_ToVersion(t *testing.T) {
 			name:    "mac/community",
 			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
 			fn:      "mongodb-macos-x86_64-4.2.8.tgz",
+			wantErr: false,
+		},
+		{
+			name:    "mac40/community",
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 0, 19, false}},
+			fn:      "mongodb-osx-ssl-x86_64-4.0.19.tgz",
 			wantErr: false,
 		},
 		{
@@ -195,7 +220,7 @@ func TestVersion_ToVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ToVersion(tt.fn)
-			fmt.Println(got, err)
+			//fmt.Println(got, err)
 			if err == nil {
 				if tt.wantErr {
 					t.Errorf("ToVersion(): fn: %v: wanted error, got none", tt.fn)

@@ -32,7 +32,7 @@ var validArch = [...]ArchType{"x86_64", "aarch64", "ppc64le", "s390x"}
 
 type OSType string
 
-var validOs = [...]OSType{"linux", "macos", "win32"}
+var validOS = [...]OSType{"linux", "macos", "win32"}
 
 type DistroType string
 
@@ -59,21 +59,27 @@ func (v *Version) ToLocation() (*Location, error) {
 		return nil, err
 	}
 	rel := fmt.Sprintf("-%d.%d.%d", v.Release.Version, v.Release.Major, v.Release.Minor)
-	// Add Distro if there is one
 	dist := ""
 	if v.Distro != "" {
 		dist = "-" + string(v.Distro)
 	}
-	// Add Enterprise modifier
 	ent := ""
 	if v.Release.Enterprise {
 		ent = "-enterprise"
 	}
-	fn := "mongodb-" + string(v.OS) + "-" + string(v.Arch) + ent + dist + rel
-	dir := string(v.OS) + "/"
-	if v.OS == "macos" {
-		dir = "osx/"
+
+	os := string(v.OS)
+	dir := os
+	if os == "macos" {
+		dir = "osx"
+		if (v.Release.Version < 4) || (v.Release.Major < 2) {
+			os = "osx-ssl"
+			if v.Release.Enterprise {
+				os = "osx"
+			}
+		}
 	}
+	fn := "mongodb-" + os + "-" + string(v.Arch) + ent + dist + rel
 
 	prefix := communityUrlPrefix
 	if v.Release.Enterprise {
@@ -86,7 +92,7 @@ func (v *Version) ToLocation() (*Location, error) {
 	}
 	return &Location{
 		Filename:  fn,
-		URLPrefix: prefix + dir,
+		URLPrefix: prefix + dir + "/",
 		URLSuffix: suffix,
 	}, nil
 }
@@ -110,10 +116,19 @@ func ToVersion(fn string) (*Version, error) {
 	if elements[0] != "mongodb" {
 		return nil, fmt.Errorf("fn '%s' invalid, does not start with 'mongodb'", fn)
 	}
+	elements = elements[1:]
 	thisVersion := new(Version)
-	thisVersion.OS = OSType(elements[1])
-	thisVersion.Arch = ArchType(elements[2])
-	elements = elements[3:]
+	// before 4.2, macOS was "osx" in the name for Enterprise, and "osx-ssl" for Community
+	if elements[0] == "osx" {
+		thisVersion.OS = "macos"
+		if elements[1] == "ssl" {
+			elements = elements[1:]
+		}
+	} else {
+		thisVersion.OS = OSType(elements[0])
+	}
+	thisVersion.Arch = ArchType(elements[1])
+	elements = elements[2:]
 	if elements[0] == "enterprise" {
 		thisVersion.Release.Enterprise = true
 		if len(elements) <= 1 {
@@ -183,7 +198,7 @@ func (v *Version) Validate() error {
 		return fmt.Errorf("%s is not a valid architecture", v.Arch)
 	}
 	invalid = true
-	for _, x := range validOs {
+	for _, x := range validOS {
 		if x == v.OS {
 			invalid = false
 		}
