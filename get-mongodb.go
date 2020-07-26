@@ -1,48 +1,100 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/SpencerBrown/get-mongodb/get"
 	"github.com/SpencerBrown/get-mongodb/version"
 	"io/ioutil"
 	"log"
-	"os/user"
+	"os"
 	"path/filepath"
 )
 
 const binaryDir = "mongodb-binaries"
 
 func getPath() string {
-	thisUser, err := user.Current()
+	homedir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("Error getting current user: %v\n", err)
+		log.Fatalf("Error getting home directory: %v\n", err)
 	}
-	return filepath.Join(thisUser.HomeDir, binaryDir)
+	return filepath.Join(homedir, binaryDir)
 }
 
 var binaryPath = getPath()
 
 func main() {
-	err := getOneAndExpand()
-	if err != nil {
-		fmt.Printf("error %v", err)
+
+	var arch = flag.String("arch", "x86_64", "Architecture: x86_64 (default), aarch64, ppc64ld, s390x")
+	//var a_arch = flag.String("a", "x86_64", "(short for 'arch')")
+	var myos = flag.String("os", "linux", "OS: linux (default), macos, win32")
+	//var a_myos = flag.String("o", "linux", "(short for 'os')")
+	var distro = flag.String("distro", "ubuntu1604", "Linux distro")
+	var release = flag.String("version", "4.2.9", "MongoDB version")
+	var community = flag.Bool("community", false, "Community version?")
+
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		printHelp()
 		return
 	}
-	err = listVersions()
-	if err != nil {
-		fmt.Printf("error %v", err)
-		return
+	switch flag.Arg(0) {
+	case "list":
+		err := listVersions()
+		if err != nil {
+			fmt.Printf("Error listing versions: %v\n", err)
+		}
+	case "get":
+		v := &version.Version{
+			Arch:   version.ArchType(*arch),
+			OS:     version.OSType(*myos),
+			Distro: version.DistroType(*distro),
+		}
+		var err error
+		v.Release, err = version.ToRelease(*release)
+		if err != nil {
+			fmt.Printf("Error in release '%s': %v\n", *release, err)
+			return
+		}
+		v.Release.Enterprise = !(*community)
+		fmt.Println(v)
+		err = v.Validate()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		err = getOneAndExpand(v)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+		}
+	default:
+		printHelp()
 	}
 }
 
-func getOneAndExpand() error {
-	myVersion := version.Version{
-		Arch:    "x86_64",
-		OS:      "macos",
-		Distro:  "",
-		Release: version.ReleaseType{Version: 4, Major: 0, Minor: 18, Enterprise: false},
-	}
-	myLocation, err := myVersion.ToLocation()
+func printHelp() {
+	fmt.Printf("%s list - lists currently downloaded versions\n", os.Args[0])
+	fmt.Printf("%s get - downloads a version\n", os.Args[0])
+	flag.PrintDefaults()
+
+}
+
+//func main() {
+//	err := getOneAndExpand()
+//	if err != nil {
+//		fmt.Printf("error %v", err)
+//		return
+//	}
+//	err = listVersions()
+//	if err != nil {
+//		fmt.Printf("error %v", err)
+//		return
+//	}
+//}
+
+func getOneAndExpand(v *version.Version) error {
+	myLocation, err := v.ToLocation()
 	if err != nil {
 		return fmt.Errorf("Error getting location: %v\n", err)
 	}
@@ -54,9 +106,8 @@ func getOneAndExpand() error {
 	} else {
 		fmt.Printf("Successfully downloaded to %s from URL %s\n", binaryPath, myURL)
 	}
-	myVersion2, err := version.ToVersion(myLocation.Filename)
-	fmt.Println(myVersion2)
-
+	//myVersion2, err := version.ToVersion(myLocation.Filename)
+	//fmt.Println(myVersion2)
 	return nil
 }
 
@@ -79,7 +130,7 @@ func listVersions() error {
 		if v.Release.Enterprise {
 			isEnterprise = "Enterprise"
 		}
-		fmt.Printf("%-7s %-5s %-10s %d.%d.%2d %s\n", v.Arch, v.OS, v.Distro, v.Release.Version, v.Release.Major, v.Release.Minor, isEnterprise)
+		fmt.Printf("%-7s %-5s %-10s %d.%d.%2d %s %s\n", v.Arch, v.OS, v.Distro, v.Release.Version, v.Release.Major, v.Release.Minor, v.Release.Modifier, isEnterprise)
 	}
 	return nil
 }

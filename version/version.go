@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -23,7 +24,8 @@ type ReleaseType struct {
 	Version    int
 	Major      int
 	Minor      int
-	Enterprise bool // true if Enterprise edition
+	Modifier   string // e.g. "rc1"
+	Enterprise bool   // true if Enterprise edition
 }
 
 type ArchType string
@@ -49,6 +51,32 @@ var validDistro = [...]DistroType{
 	"windows-64",
 }
 
+/*
+The following regex breaks down a tarball filename into a slice of strings:
+	0. The entire string (filename)
+	1. OS
+	2. Architecture
+	3. "enterprise" or ""
+	4. Distro or ""
+	5. Release "x.y.z"
+	6. Release suffix e.g. "rc14"
+	7. ".tgz", ".zip", or ""
+
+	If the filename doesn't match the pattern, an empty slice is returned
+*/
+var filenameRegex = regexp.MustCompile(`^mongodb-(linux|macos|osx|osx-ssl|win32)-(x86_64|s390x|ppc64le|aarch64)-(?:(enterprise)-)?(?:(rhel\d\d|debian\d\d|suse\d\d|ubuntu\d\d\d\d|amzn64|amazon2|windows-64)-)?(\d\.\d\.\d{1,2})(?:-([a-z0-9]+))?(.tgz|.zip)?`)
+
+/*
+The following regex breaks down a release string into a slice of strings:
+	0. The entire string
+	1. Release version (single digit string)
+	2. Release major (single digit string)
+	3. Release minor (one or two-digit string)
+	4. Release modifier ("xxx" or "")
+*/
+
+var releaseRegex = regexp.MustCompile(`^(\d)\.(\d)\.(\d{1,2})(?:-([a-z0-9]+))?`)
+
 const enterpriseUrlPrefix = "https://downloads.mongodb.com/"
 const communityUrlPrefix = "https://fastdl.mongodb.org/"
 
@@ -59,6 +87,9 @@ func (v *Version) ToLocation() (*Location, error) {
 		return nil, err
 	}
 	rel := fmt.Sprintf("-%d.%d.%d", v.Release.Version, v.Release.Major, v.Release.Minor)
+	if v.Release.Modifier != "" {
+		rel = rel + "-" + v.Release.Modifier
+	}
 	dist := ""
 	if v.Distro != "" {
 		dist = "-" + string(v.Distro)
@@ -67,7 +98,6 @@ func (v *Version) ToLocation() (*Location, error) {
 	if v.Release.Enterprise {
 		ent = "-enterprise"
 	}
-
 	os := string(v.OS)
 	dir := os
 	if os == "macos" {
@@ -80,12 +110,10 @@ func (v *Version) ToLocation() (*Location, error) {
 		}
 	}
 	fn := "mongodb-" + os + "-" + string(v.Arch) + ent + dist + rel
-
 	prefix := communityUrlPrefix
 	if v.Release.Enterprise {
 		prefix = enterpriseUrlPrefix
 	}
-	// Suffix is .tgz except for Windows which is .zip
 	suffix := ".tgz"
 	if v.OS == "win32" {
 		suffix = ".zip"
@@ -99,91 +127,85 @@ func (v *Version) ToLocation() (*Location, error) {
 
 // Convert filename to Version
 func ToVersion(fn string) (*Version, error) {
-	// Filename elements ,separated by dashes:
+	// Filename elements
 	/*
-		"mongodb"
-		OS
-		Arch
-		"enterprise" (missing if Community version)
-		Distro (missing for macOS, "windows-64" for Windows)
-		release (e.g. 4.2.8.tgz; will also work without the extension)
+			"mongodb-"
+			OS-
+			Arch-
+			"enterprise-" (missing if Community version)
+			Distro- (missing for macOS, "windows-64-" for Windows)
+			release (e.g. 4.2.8 or 4.4.0-rc14)
+			extension (optional) .tgz or .zip
+
+		The regex breaks down a tarball filename into a slice of strings:
+		0. The entire string (filename)
+		1. OS
+		2. Architecture
+		3. "enterprise" or ""
+		4. Distro or ""
+		5. Release "x.y.z"
+		6. Release suffix e.g. "rc14"
+		7. ".tgz", ".zip", or ""
 	*/
-	elements := strings.Split(fn, "-")
-	n := len(elements)
-	if (n < 4) || (n > 7) {
-		return nil, fmt.Errorf("fn '%s' invalid, too few or too many elements", fn)
+	relements := filenameRegex.FindStringSubmatch(fn)
+	if len(relements) != 8 {
+		return nil, fmt.Errorf("filename '%s' not recognized as a MongoDB tarball", fn)
 	}
-	if elements[0] != "mongodb" {
-		return nil, fmt.Errorf("fn '%s' invalid, does not start with 'mongodb'", fn)
-	}
-	elements = elements[1:]
 	thisVersion := new(Version)
-	// before 4.2, macOS was "osx" in the name for Enterprise, and "osx-ssl" for Community
-	if elements[0] == "osx" {
+	if relements[1] == "osx" || relements[1] == "osx-ssl" {
 		thisVersion.OS = "macos"
-		if elements[1] == "ssl" {
-			elements = elements[1:]
-		}
 	} else {
-		thisVersion.OS = OSType(elements[0])
+		thisVersion.OS = OSType(relements[1])
 	}
-	thisVersion.Arch = ArchType(elements[1])
-	elements = elements[2:]
-	if elements[0] == "enterprise" {
+	thisVersion.Arch = ArchType(relements[2])
+	if relements[3] == "enterprise" {
 		thisVersion.Release.Enterprise = true
-		if len(elements) <= 1 {
-			return nil, fmt.Errorf("fn '%s' invalid, nothing after 'enterprise'", fn)
-		}
-		elements = elements[1:]
 	}
-	if thisVersion.OS == "linux" {
-		thisVersion.Distro = DistroType(elements[0])
-		if len(elements) != 2 {
-			return nil, fmt.Errorf("fn '%s' invalid, nothing after Linux distro", fn)
-		}
-		elements = elements[1:]
+	thisVersion.Distro = DistroType(relements[4])
+	thisVersion.Release.Modifier = relements[6]
+	releaseStrings := strings.Split(relements[5], ".")
+	thisVersion.Release.Version, _ = strconv.Atoi(releaseStrings[0]) // no error checking necessary,
+	thisVersion.Release.Major, _ = strconv.Atoi(releaseStrings[1])   // regex has already vetted the string
+	thisVersion.Release.Minor, _ = strconv.Atoi(releaseStrings[2])
+
+	if relements[7] == ".tgz" && thisVersion.OS == "win32" {
+		return nil, fmt.Errorf("filename '%s' for Windows requires .zip extension", fn)
 	}
-	if thisVersion.OS == "win32" {
-		// Distro must be "windows", "64"
-		if (len(elements) != 3) || (elements[0] != "windows") || (elements[1] != "64") {
-			return nil, fmt.Errorf("fn '%s' invalid, Windows must be windows-64 distro", fn)
-		}
-		thisVersion.Distro = "windows-64"
-		elements = elements[2:]
+	if relements[7] == ".zip" && thisVersion.OS != "win32" {
+		return nil, fmt.Errorf("non-Windows filename '%s' requires .tgz extension", fn)
 	}
-	rel := strings.Split(elements[0], ".") // "x.y.z.ft" or "x.y.z"
-	if len(rel) == 4 {
-		ft := rel[3]
-		rel = rel[:3]
-		if thisVersion.OS == "win32" {
-			if ft != "zip" {
-				return nil, fmt.Errorf("fn '%s': Windows filetype must be 'zip'", fn)
-			}
-		} else {
-			if ft != "tgz" {
-				return nil, fmt.Errorf("fn '%s': non-Windows filetype must be 'tgz'", fn)
-			}
-		}
-	}
-	if len(rel) != 3 {
-		return nil, fmt.Errorf("fn '%s' invalid, release must have 3 elements", fn)
-	}
-	var r [3]int
-	var err error
-	for i := 0; i < 3; i++ {
-		r[i], err = strconv.Atoi(rel[i])
-		if err != nil {
-			return nil, fmt.Errorf("fn '%s' invalid, release must be numeric", fn)
-		}
-	}
-	thisVersion.Release.Version = r[0]
-	thisVersion.Release.Major = r[1]
-	thisVersion.Release.Minor = r[2]
-	err = thisVersion.Validate()
+
+	err := thisVersion.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("fn '%s' invalid: %v", fn, err)
 	}
 	return thisVersion, nil
+}
+
+// Given a string representing a release, return a ReleaseType
+func ToRelease(rs string) (ReleaseType, error) {
+
+	/*
+		The following regex breaks down a release string into a slice of strings:
+		0. The entire string
+		1. Release version (single digit string)
+		2. Release major (single digit string)
+		3. Release minor (one or two-digit string)
+		4. Release modifier ("xxx" or "")
+	*/
+
+	rt := ReleaseType{}
+	relements := releaseRegex.FindStringSubmatch(rs)
+	if len(relements) != 5 {
+		return rt, fmt.Errorf("release string '%s' does not match the pattern", rs)
+	}
+	fmt.Println(relements)
+	rt.Version, _ = strconv.Atoi(relements[1]) // don't have to check errors; regex has already vetted the string
+	rt.Major, _ = strconv.Atoi(relements[2])
+	rt.Minor, _ = strconv.Atoi(relements[3])
+	rt.Modifier = relements[4]
+	fmt.Println(rt)
+	return rt, nil
 }
 
 // Validate a Version

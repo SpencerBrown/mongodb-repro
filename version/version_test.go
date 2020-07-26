@@ -37,6 +37,8 @@ https://downloads.mongodb.com/osx/mongodb-osx-x86_64-enterprise-4.0.19.tgz
 
 */
 
+// mongodb-(linux|macos|osx|osx-ssl|win32)-(x86_64|s390x|ppc64le|aarch64)-(enterprise-)?(rhel62|rhel70|...|windows-64)?\d\.\d\.\d(-+*)?(.tgz|.zip)?
+
 func TestVersion_ToLocation(t *testing.T) {
 	type fields struct {
 		arch    ArchType
@@ -52,43 +54,49 @@ func TestVersion_ToLocation(t *testing.T) {
 	}{
 		{
 			"windows",
-			fields{"x86_64", "win32", "windows-64", ReleaseType{4, 2, 5, true}},
+			fields{"x86_64", "win32", "windows-64", ReleaseType{4, 2, 5, "", true}},
 			Location{Filename: "mongodb-win32-x86_64-enterprise-windows-64-4.2.5", URLSuffix: ".zip", URLPrefix: "https://downloads.mongodb.com/win32/"},
 			false,
 		},
 		{
 			"mac",
-			fields{"x86_64", "macos", "", ReleaseType{4, 2, 5, true}},
+			fields{"x86_64", "macos", "", ReleaseType{4, 2, 5, "", true}},
 			Location{Filename: "mongodb-macos-x86_64-enterprise-4.2.5", URLPrefix: "https://downloads.mongodb.com/osx/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
+			"mac-rc",
+			fields{"x86_64", "macos", "", ReleaseType{4, 2, 5, "rc1", true}},
+			Location{Filename: "mongodb-macos-x86_64-enterprise-4.2.5-rc1", URLPrefix: "https://downloads.mongodb.com/osx/", URLSuffix: ".tgz"},
+			false,
+		},
+		{
 			"mac40",
-			fields{"x86_64", "macos", "", ReleaseType{4, 0, 19, true}},
+			fields{"x86_64", "macos", "", ReleaseType{4, 0, 19, "", true}},
 			Location{Filename: "mongodb-osx-x86_64-enterprise-4.0.19", URLPrefix: "https://downloads.mongodb.com/osx/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"linux",
-			fields{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			fields{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, "", true}},
 			Location{Filename: "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5", URLPrefix: "https://downloads.mongodb.com/linux/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"linux/community",
-			fields{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, false}},
+			fields{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, "", false}},
 			Location{Filename: "mongodb-linux-x86_64-ubuntu1604-4.2.5", URLPrefix: "https://fastdl.mongodb.org/linux/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"mac/community",
-			fields{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
+			fields{"x86_64", "macos", "", ReleaseType{4, 2, 8, "", false}},
 			Location{Filename: "mongodb-macos-x86_64-4.2.8", URLPrefix: "https://fastdl.mongodb.org/osx/", URLSuffix: ".tgz"},
 			false,
 		},
 		{
 			"mac40/community",
-			fields{"x86_64", "macos", "", ReleaseType{4, 0, 19, false}},
+			fields{"x86_64", "macos", "", ReleaseType{4, 0, 19, "", false}},
 			Location{Filename: "mongodb-osx-ssl-x86_64-4.0.19", URLPrefix: "https://fastdl.mongodb.org/osx/", URLSuffix: ".tgz"},
 			false,
 		},
@@ -129,42 +137,47 @@ func TestVersion_ToVersion(t *testing.T) {
 		{
 			name:    "windows",
 			fn:      "mongodb-win32-x86_64-enterprise-windows-64-4.2.5.zip",
-			want:    Version{Arch: "x86_64", OS: "win32", Distro: "windows-64", Release: ReleaseType{Version: 4, Major: 2, Minor: 5, Enterprise: true}},
+			want:    Version{Arch: "x86_64", OS: "win32", Distro: "windows-64", Release: ReleaseType{Version: 4, Major: 2, Minor: 5, Modifier: "", Enterprise: true}},
+			wantErr: false,
+		}, {
+			name:    "windows-rc",
+			fn:      "mongodb-win32-x86_64-enterprise-windows-64-4.2.5-rc0.zip",
+			want:    Version{Arch: "x86_64", OS: "win32", Distro: "windows-64", Release: ReleaseType{Version: 4, Major: 2, Minor: 5, Modifier: "rc0", Enterprise: true}},
 			wantErr: false,
 		},
 		{
 			name:    "mac",
 			fn:      "mongodb-macos-x86_64-enterprise-4.2.5",
-			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 5, true}},
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 5, "", true}},
 			wantErr: false,
 		},
 		{
 			name:    "mac40",
 			fn:      "mongodb-osx-x86_64-enterprise-4.0.19.tgz",
-			want:    Version{"x86_64", "macos", "", ReleaseType{4, 0, 19, true}},
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 0, 19, "", true}},
 			wantErr: false,
 		},
 		{
 			name:    "linux",
 			fn:      "mongodb-linux-s390x-enterprise-ubuntu1804-4.2.5.tgz",
-			want:    Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			want:    Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 5, "", true}},
 			wantErr: false,
 		},
 		{
 			name:    "linux/community",
 			fn:      "mongodb-linux-x86_64-ubuntu1604-4.2.5",
-			want:    Version{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, false}},
+			want:    Version{"x86_64", "linux", "ubuntu1604", ReleaseType{4, 2, 5, "", false}},
 			wantErr: false,
 		},
 		{
 			name:    "mac/community",
-			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 8, false}},
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 2, 8, "", false}},
 			fn:      "mongodb-macos-x86_64-4.2.8.tgz",
 			wantErr: false,
 		},
 		{
 			name:    "mac40/community",
-			want:    Version{"x86_64", "macos", "", ReleaseType{4, 0, 19, false}},
+			want:    Version{"x86_64", "macos", "", ReleaseType{4, 0, 19, "", false}},
 			fn:      "mongodb-osx-ssl-x86_64-4.0.19.tgz",
 			wantErr: false,
 		},
@@ -261,32 +274,32 @@ func TestVersion_Validate(t *testing.T) {
 		},
 		{
 			"bad Arch",
-			Version{"foobar", "linux", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			Version{"foobar", "linux", "ubuntu1804", ReleaseType{4, 2, 5, "", true}},
 			true,
 		},
 		{
 			"bad OS",
-			Version{"s390x", "foobar", "ubuntu1804", ReleaseType{4, 2, 5, true}},
+			Version{"s390x", "foobar", "ubuntu1804", ReleaseType{4, 2, 5, "", true}},
 			true,
 		},
 		{
 			"bad Distro",
-			Version{"s390x", "linux", "foobar", ReleaseType{4, 2, 5, true}},
+			Version{"s390x", "linux", "foobar", ReleaseType{4, 2, 5, "", true}},
 			true,
 		},
 		{
 			"bad Version",
-			Version{"s390x", "linux", "ubuntu1804", ReleaseType{42, 2, 5, true}},
+			Version{"s390x", "linux", "ubuntu1804", ReleaseType{42, 2, 5, "", true}},
 			true,
 		},
 		{
 			"bad Major",
-			Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 42, 5, true}},
+			Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 42, 5, "", true}},
 			true,
 		},
 		{
 			"bad minor",
-			Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 42, true}},
+			Version{"s390x", "linux", "ubuntu1804", ReleaseType{4, 2, 42, "", true}},
 			true,
 		},
 	}
