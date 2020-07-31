@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/SpencerBrown/get-mongodb/config"
-	"github.com/SpencerBrown/get-mongodb/get"
-	"github.com/SpencerBrown/get-mongodb/version"
+	"github.com/SpencerBrown/mongodb-repro/config"
+	"github.com/SpencerBrown/mongodb-repro/get"
+	"github.com/SpencerBrown/mongodb-repro/version"
 	"io/ioutil"
 	"log"
 	"os"

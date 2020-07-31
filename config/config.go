@@ -87,7 +87,6 @@ storage:
 processManagement:
   fork: false
 `
-
 	out := Type{}
 	//out.Storage.WiredTiger.EngineConfig.CacheSizeGB = 1
 	err := yaml.Unmarshal([]byte(yamlString), &out)
