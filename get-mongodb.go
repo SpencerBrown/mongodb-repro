@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 const binaryDir = "mongodb-binaries"
@@ -90,7 +91,11 @@ func main() {
 			fmt.Printf("Setup error: %v\n", err)
 		}
 	case "run":
-		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-macos-x86_64-enterprise-4.2.8/bin/mongod"), "-f", filepath.Join(runtimePath, "sa.yaml"))
+		mongoExt := ""
+		if runtime.GOOS == "windows" {
+			mongoExt = ".exe"
+		}
+		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-win32-x86_64-enterprise-windows-64-4.2.8/bin/mongod"+mongoExt), "-f", filepath.Join(runtimePath, "sa.yaml"))
 		err := runcmd.Start()
 		if err == nil {
 			fmt.Printf("Started!\n")
