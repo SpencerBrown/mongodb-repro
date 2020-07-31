@@ -3,25 +3,34 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/SpencerBrown/get-mongodb/config"
 	"github.com/SpencerBrown/get-mongodb/get"
 	"github.com/SpencerBrown/get-mongodb/version"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
 const binaryDir = "mongodb-binaries"
+const runtimeDir = "mongodb-runtime"
 
-func getPath() string {
+var binaryPath string
+var runtimePath string
+
+func init() {
+	binaryPath = getPath(binaryDir)
+	runtimePath = getPath(runtimeDir)
+}
+
+func getPath(dir string) string {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("Error getting home directory: %v\n", err)
 	}
-	return filepath.Join(homedir, binaryDir)
+	return filepath.Join(homedir, dir)
 }
-
-var binaryPath = getPath()
 
 func main() {
 
@@ -68,6 +77,26 @@ func main() {
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}
+	case "config":
+		//config.Foo()
+		var cfg config.Type
+		cfg = *config.OurDefaults // makes a copy so we don't pollute the static global variable. This makes a full copy because we don't have any reference types in the struct.
+		cfg.Storage.DbPath = filepath.Join(runtimePath, "data")
+		cfg.SystemLog.Path = filepath.Join(runtimePath, "sa.log")
+		err := config.WriteConfig(&cfg, runtimePath, "sa.yaml")
+		if err == nil {
+			fmt.Printf("Configuration complete!\n")
+		} else {
+			fmt.Printf("Setup error: %v\n", err)
+		}
+	case "run":
+		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-macos-x86_64-enterprise-4.2.8/bin/mongod"), "-f", filepath.Join(runtimePath, "sa.yaml"))
+		err := runcmd.Start()
+		if err == nil {
+			fmt.Printf("Started!\n")
+		} else {
+			fmt.Printf("Error starting MongoDB: %v\n", err)
+		}
 	default:
 		printHelp()
 	}
@@ -77,21 +106,7 @@ func printHelp() {
 	fmt.Printf("%s list - lists currently downloaded versions\n", os.Args[0])
 	fmt.Printf("%s get - downloads a version\n", os.Args[0])
 	flag.PrintDefaults()
-
 }
-
-//func main() {
-//	err := getOneAndExpand()
-//	if err != nil {
-//		fmt.Printf("error %v", err)
-//		return
-//	}
-//	err = listVersions()
-//	if err != nil {
-//		fmt.Printf("error %v", err)
-//		return
-//	}
-//}
 
 func getOneAndExpand(v *version.Version) error {
 	myLocation, err := v.ToLocation()

@@ -64,7 +64,10 @@ The following regex breaks down a tarball filename into a slice of strings:
 
 	If the filename doesn't match the pattern, an empty slice is returned
 */
-var filenameRegex = regexp.MustCompile(`^mongodb-(linux|macos|osx|osx-ssl|win32)-(x86_64|s390x|ppc64le|aarch64)-(?:(enterprise)-)?(?:(rhel\d\d|debian\d\d|suse\d\d|ubuntu\d\d\d\d|amzn64|amazon2|windows-64)-)?(\d\.\d\.\d{1,2})(?:-([a-z0-9]+))?(.tgz|.zip)?`)
+
+const filenameRegexString = `^mongodb-(linux|macos|osx|osx-ssl|win32)-(x86_64|s390x|ppc64le|aarch64)-(?:(enterprise)-)?(?:(rhel\d\d|debian\d\d|suse\d\d|ubuntu\d\d\d\d|amzn64|amazon2|windows-64)-)?(\d\.\d\.\d{1,2})(?:-([a-z0-9]+))?(.tgz|.zip)?`
+
+var filenameRegex *regexp.Regexp
 
 /*
 The following regex breaks down a release string into a slice of strings:
@@ -75,7 +78,14 @@ The following regex breaks down a release string into a slice of strings:
 	4. Release modifier ("xxx" or "")
 */
 
-var releaseRegex = regexp.MustCompile(`^(\d)\.(\d)\.(\d{1,2})(?:-([a-z0-9]+))?`)
+const releaseRegexString = `^(\d)\.(\d)\.(\d{1,2})(?:-([a-z0-9]+))?`
+
+var releaseRegex *regexp.Regexp
+
+func init() {
+	filenameRegex = regexp.MustCompile(filenameRegexString)
+	releaseRegex = regexp.MustCompile(releaseRegexString)
+}
 
 const enterpriseUrlPrefix = "https://downloads.mongodb.com/"
 const communityUrlPrefix = "https://fastdl.mongodb.org/"
