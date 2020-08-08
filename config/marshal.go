@@ -22,7 +22,9 @@ func printStruct(leader string, val *reflect.Value, buf *bytes.Buffer) {
 	for i := 0; i < nval; i++ {
 		sf := tval.Field(i)
 		sv := val.Field(i)
-		_, _ = fmt.Fprintf(buf, "%s%s: ", leader, sf.Name)
+		sn := sf.Name
+		snl := string(sn[0]+('a'-'A')) + sn[1:] // lowercase first letter
+		_, _ = fmt.Fprintf(buf, "%s%s: ", leader, snl)
 		switch sf.Type.Kind() {
 		case reflect.Struct:
 			printStruct(leader+"  ", &sv, buf)
@@ -33,7 +35,7 @@ func printStruct(leader string, val *reflect.Value, buf *bytes.Buffer) {
 		case reflect.Uint:
 			_, _ = fmt.Fprintf(buf, "%d\n", sv.Uint())
 		case reflect.Float32:
-			_, _ = fmt.Fprintf(buf, "%f\n", sv.Float())
+			_, _ = fmt.Fprintf(buf, "%.2f\n", sv.Float())
 		default:
 			panic("Unknown type in config struct")
 		}
