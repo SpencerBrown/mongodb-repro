@@ -1,16 +1,23 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/SpencerBrown/mongodb-repro/config"
 	"github.com/SpencerBrown/mongodb-repro/get"
 	"github.com/SpencerBrown/mongodb-repro/version"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"time"
 )
 
 const binaryDir = "mongodb-binaries"
@@ -80,6 +87,7 @@ func main() {
 		err = getOneAndExpand(v)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
+			return
 		}
 	case "config":
 		//config.Foo()
@@ -94,18 +102,75 @@ func main() {
 			_, _ = buf.WriteTo(os.Stdout)
 		} else {
 			fmt.Printf("Setup error: %v\n", err)
+			return
 		}
 	case "run":
-		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-macos-x86_64-enterprise-4.2.8/bin/mongod"), "-f", filepath.Join(runtimePath, "sa.yaml"))
-		err := runcmd.Start()
-		if err == nil {
-			fmt.Printf("Started!\n")
-		} else {
-			fmt.Printf("Error starting MongoDB: %v\n", err)
+		mongoExt := ""
+		if runtime.GOOS == "windows" {
+			mongoExt = ".exe"
 		}
+		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-win32-x86_64-enterprise-windows-64-4.2.8/bin/mongod"+mongoExt), "-f", filepath.Join(runtimePath, "sa.yaml"))
+		err := runcmd.Start()
+		if err != nil {
+			fmt.Printf("Error ) MongoDB: %v\n", err)
+			return
+		}
+		fmt.Printf("Started!\n")
+		client, err := connectMongo()
+		if err != nil {
+			fmt.Printf("Error connecting to server: %v\n", err)
+			return
+		}
+		defer func() {
+			if err = client.Disconnect(context.Background()); err != nil {
+				panic(err)
+			}
+		}()
+		err = setupAdminUser(client)
+		if err != nil {
+			fmt.Printf("Error setting up admin user: %v\n", err)
+			return
+		}
+		fmt.Printf("Successfully set up admin user!\n")
 	default:
 		printHelp()
 	}
+}
+
+func setupAdminUser(client *mongo.Client) error {
+	cmd := bson.D{{"createUser", "admin"}, {"pwd", "tester"}, {"roles", bson.A{"root"}}}
+	db := client.Database("admin")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res := db.RunCommand(ctx, cmd)
+	if res.Err() != nil {
+		return fmt.Errorf("error running createUser command: %v", res.Err())
+	}
+	var result bson.M
+	_ = res.Decode(&result)
+	fmt.Printf("Created asmin user: \n%v\n", result)
+	return nil
+}
+
+func connectMongo() (*mongo.Client, error) {
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		return nil, fmt.Errorf("error setting up client: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err = client.Connect(ctx)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("error connecting: %v", err)
+	}
+	cancel()
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = client.Ping(ctx, readpref.Primary())
+	if err != nil {
+		return nil, fmt.Errorf("error pinging: %v", err)
+	}
+	return client, nil
 }
 
 func printHelp() {

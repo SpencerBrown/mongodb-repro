@@ -33,10 +33,10 @@ type Type struct {
 	} `yaml:",omitempty"`
 
 	Net struct {
-		Port             uint   `yaml:",omitempty"`       // default: 27017, 27018 if shard member, 27019 if CSRS member
-		BindIp           string `yaml:"bindIp,omitempty"` // default is "127.0.0.1"
-		Ipv6             bool   `yaml:",omitempty"`       // default is false
-		UnixDomainSocket struct {
+		Port             uint     `yaml:",omitempty"`       // default: 27017, 27018 if shard member, 27019 if CSRS member
+		BindIp           string   `yaml:"bindIp,omitempty"` // default is "127.0.0.1"
+		Ipv6             bool     `yaml:",omitempty"`       // default is false
+		UnixDomainSocket struct { // not valid on Windows
 			Enabled bool // default is true
 		} `yaml:"unixDomainSocket"`
 	} `yaml:",omitempty"`
