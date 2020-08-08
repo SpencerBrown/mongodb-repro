@@ -110,13 +110,13 @@ func main() {
 			return
 		}
 		fmt.Printf("Started!\n")
-		client, ctx, err := connectMongo()
+		client, err := connectMongo()
 		if err != nil {
 			fmt.Printf("Error connecting to server: %v\n", err)
 			return
 		}
 		defer func() {
-			if err = client.Disconnect(ctx); err != nil {
+			if err = client.Disconnect(context.Background()); err != nil {
 				panic(err)
 			}
 		}()
@@ -146,24 +146,25 @@ func setupAdminUser(client *mongo.Client) error {
 	return nil
 }
 
-func connectMongo() (*mongo.Client, context.Context, error) {
+func connectMongo() (*mongo.Client, error) {
 	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
-		return nil, nil, fmt.Errorf("error setting up client: %v", err)
+		return nil, fmt.Errorf("error setting up client: %v", err)
 	}
-	connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err = client.Connect(connectCtx)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err = client.Connect(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error connecting: %v", err)
+		cancel()
+		return nil, fmt.Errorf("error connecting: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	cancel()
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	err = client.Ping(ctx, readpref.Primary())
 	if err != nil {
-		return nil, nil, fmt.Errorf("error pinging: %v", err)
+		return nil, fmt.Errorf("error pinging: %v", err)
 	}
-	return client, connectCtx, nil
+	return client, nil
 }
 
 func printHelp() {
