@@ -49,6 +49,10 @@ func main() {
 		return
 	}
 	switch flag.Arg(0) {
+	case "marshal":
+		cfg := &config.Type{}
+		buf := cfg.ToYaml()
+		_, _ = buf.WriteTo(os.Stdout)
 	case "list":
 		err := listVersions()
 		if err != nil {
@@ -86,6 +90,8 @@ func main() {
 		err := config.WriteConfig(&cfg, runtimePath, "sa.yaml")
 		if err == nil {
 			fmt.Printf("Configuration complete!\n")
+			buf := cfg.ToYaml()
+			_, _ = buf.WriteTo(os.Stdout)
 		} else {
 			fmt.Printf("Setup error: %v\n", err)
 		}
