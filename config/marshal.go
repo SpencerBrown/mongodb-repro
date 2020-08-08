@@ -7,37 +7,112 @@ import (
 )
 
 // write out a config in YAML
-func (c *Type) ToYaml() *bytes.Buffer {
+func (c *Type) ToYaml(isWindows bool) *bytes.Buffer {
 	cv := reflect.ValueOf(*c)
 	buf := new(bytes.Buffer)
-	printStruct("", &cv, buf)
+	printStruct("", &cv, buf, isWindows)
 	return buf
 }
 
 // write out a struct in YAML
-func printStruct(leader string, val *reflect.Value, buf *bytes.Buffer) {
+func printStruct(leader string, val *reflect.Value, buf *bytes.Buffer, isWindows bool) {
 	tval := val.Type()
 	nval := val.NumField()
-	_, _ = fmt.Fprintln(buf)
 	for i := 0; i < nval; i++ {
-		sf := tval.Field(i)
 		sv := val.Field(i)
+		sf := tval.Field(i)
 		sn := sf.Name
 		snl := string(sn[0]+('a'-'A')) + sn[1:] // lowercase first letter
-		_, _ = fmt.Fprintf(buf, "%s%s: ", leader, snl)
 		switch sf.Type.Kind() {
 		case reflect.Struct:
-			printStruct(leader+"  ", &sv, buf)
+			// If struct is tagged omitwindows and we are on Windows, don't write it at all
+			_, ok := sf.Tag.Lookup("omitwindows")
+			if !(ok && isWindows) {
+				if checkStruct(&sv) {
+					_, _ = fmt.Fprintf(buf, "%s%s:\n", leader, snl)
+					printStruct(leader+"  ", &sv, buf, isWindows)
+				}
+			}
 		case reflect.Bool:
-			_, _ = fmt.Fprintf(buf, "%v\n", sv.Bool())
+			if !isDefault(&sv, &sf) {
+				_, _ = fmt.Fprintf(buf, "%s%s: %t\n", leader, snl, sv.Bool())
+			}
 		case reflect.String:
-			_, _ = fmt.Fprintln(buf, sv.String())
+			if !isDefault(&sv, &sf) {
+				_, _ = fmt.Fprintf(buf, "%s%s: %s\n", leader, snl, sv.String())
+			}
 		case reflect.Uint:
-			_, _ = fmt.Fprintf(buf, "%d\n", sv.Uint())
+			if !isDefault(&sv, &sf) {
+				_, _ = fmt.Fprintf(buf, "%s%s: %d\n", leader, snl, sv.Uint())
+			}
 		case reflect.Float32:
-			_, _ = fmt.Fprintf(buf, "%.2f\n", sv.Float())
+			if !isDefault(&sv, &sf) {
+				_, _ = fmt.Fprintf(buf, "%s%s: %.2f\n", leader, snl, sv.Float())
+			}
 		default:
 			panic("Unknown type in config struct")
 		}
 	}
+}
+
+// Check if struct needs to be put into the YAML output. If it has all sub-elements with values that should not be output, return false, otherwise return true
+// this a lookahead when we encounter a struct field
+func checkStruct(val *reflect.Value) bool {
+	ret := false
+	tval := val.Type()
+	nval := val.NumField()
+	for i := 0; i < nval; i++ {
+		sf := tval.Field(i)
+		sv := val.Field(i)
+		switch sf.Type.Kind() {
+		case reflect.Struct:
+			ret = checkStruct(&sv)
+		case reflect.Bool, reflect.String, reflect.Uint, reflect.Float32:
+			ret = !isDefault(&sv, &sf)
+		default:
+			panic("Unknown type in config struct")
+		}
+		if ret {
+			break
+		}
+	}
+	return ret
+}
+
+// Check if a struct field is the default value or not, return true if it is
+// the default value is the zero value unless there is a tag on the struct field specifying a different default
+func isDefault(val *reflect.Value, field *reflect.StructField) (ret bool) {
+	def, ok := field.Tag.Lookup("default")
+	if ok {
+		switch field.Type.Kind() {
+		case reflect.String:
+			ret = def == val.String()
+		case reflect.Bool:
+			var v bool
+			_, _ = fmt.Sscanf(def, "%t", &v)
+			ret = v == val.Bool()
+		case reflect.Uint:
+			var v uint64
+			_, _ = fmt.Sscanf(def, "%d", &v)
+			ret = v == val.Uint()
+		case reflect.Float32:
+			var v float64
+			_, _ = fmt.Sscanf(def, "%f", &v)
+			ret = v == val.Float()
+		}
+	} else { // no default specified, compare check against zero value
+		switch field.Type.Kind() {
+		case reflect.Bool:
+			ret = val.Bool() == false
+		case reflect.String:
+			ret = val.String() == ""
+		case reflect.Uint:
+			ret = val.Uint() == 0
+		case reflect.Float32:
+			ret = val.Float() == 0.0
+		default:
+			panic("isDefault: Unknown type in config struct")
+		}
+	}
+	return ret
 }

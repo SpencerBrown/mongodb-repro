@@ -41,6 +41,8 @@ func getPath(dir string) string {
 
 func main() {
 
+	var isWindows = runtime.GOOS == "windows"
+
 	var arch = flag.String("arch", "x86_64", "Architecture: x86_64 (default), aarch64, ppc64ld, s390x")
 	//var a_arch = flag.String("a", "x86_64", "(short for 'arch')")
 	var myos = flag.String("os", "linux", "OS: linux (default), macos, win32")
@@ -57,8 +59,13 @@ func main() {
 	}
 	switch flag.Arg(0) {
 	case "marshal":
-		cfg := &config.Type{}
-		buf := cfg.ToYaml()
+		fmt.Println("MongoDB Defaults applied")
+		cfg := config.MongoDBDefaults
+		buf := cfg.ToYaml(isWindows)
+		_, _ = buf.WriteTo(os.Stdout)
+		fmt.Println("Opinionated Defaults applied")
+		cfg = config.OurDefaults
+		buf = cfg.ToYaml(isWindows)
 		_, _ = buf.WriteTo(os.Stdout)
 	case "list":
 		err := listVersions()
@@ -90,36 +97,32 @@ func main() {
 			return
 		}
 	case "config":
-		//config.Foo()
 		var cfg config.Type
 		cfg = *config.OurDefaults // makes a copy so we don't pollute the static global variable. This makes a full copy because we don't have any reference types in the struct.
 		cfg.Storage.DbPath = filepath.Join(runtimePath, "data")
 		cfg.SystemLog.Path = filepath.Join(runtimePath, "sa.log")
-		err := config.WriteConfig(&cfg, runtimePath, "sa.yaml")
+		err := config.WriteConfig(&cfg, runtimePath, "sa.yaml", isWindows)
 		if err == nil {
 			fmt.Printf("Configuration complete!\n")
-			buf := cfg.ToYaml()
-			_, _ = buf.WriteTo(os.Stdout)
 		} else {
 			fmt.Printf("Setup error: %v\n", err)
-			return
 		}
 	case "run":
 		mongoExt := ""
-		if runtime.GOOS == "windows" {
+		if isWindows {
 			mongoExt = ".exe"
 		}
 		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-win32-x86_64-enterprise-windows-64-4.2.8/bin/mongod"+mongoExt), "-f", filepath.Join(runtimePath, "sa.yaml"))
 		err := runcmd.Start()
 		if err != nil {
 			fmt.Printf("Error ) MongoDB: %v\n", err)
-			return
+			break
 		}
 		fmt.Printf("Started!\n")
 		client, err := connectMongo()
 		if err != nil {
 			fmt.Printf("Error connecting to server: %v\n", err)
-			return
+			break
 		}
 		defer func() {
 			if err = client.Disconnect(context.Background()); err != nil {
@@ -129,7 +132,7 @@ func main() {
 		err = setupAdminUser(client)
 		if err != nil {
 			fmt.Printf("Error setting up admin user: %v\n", err)
-			return
+			break
 		}
 		fmt.Printf("Successfully set up admin user!\n")
 	default:

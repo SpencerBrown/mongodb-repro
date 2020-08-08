@@ -99,6 +99,9 @@ func DownloadArchive(myPath string, myUrl string, timeout int) error {
 			}
 			// Set file permissions based on the zip file
 			err = os.Chmod(thePath, f.Mode())
+			if err != nil {
+				return err
+			}
 		}
 	case ".tgz":
 		gzReader, err := gzip.NewReader(bytes.NewReader(content))
