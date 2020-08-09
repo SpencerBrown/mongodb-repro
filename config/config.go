@@ -41,7 +41,7 @@ type Type struct {
 	}
 
 	ProcessManagement struct {
-		Fork bool
+		Fork bool `omitwindows:"true"`
 	}
 
 	SetParameter struct {

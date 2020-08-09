@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
 )
 
@@ -41,8 +40,6 @@ func getPath(dir string) string {
 
 func main() {
 
-	var isWindows = runtime.GOOS == "windows"
-
 	var arch = flag.String("arch", "x86_64", "Architecture: x86_64 (default), aarch64, ppc64ld, s390x")
 	//var a_arch = flag.String("a", "x86_64", "(short for 'arch')")
 	var myos = flag.String("os", "linux", "OS: linux (default), macos, win32")
@@ -57,6 +54,28 @@ func main() {
 		printHelp()
 		return
 	}
+
+	v := &version.Version{
+		Arch:   version.ArchType(*arch),
+		OS:     version.OSType(*myos),
+		Distro: version.DistroType(*distro),
+	}
+	var err error
+	v.Release, err = version.ToRelease(*release)
+	if err != nil {
+		fmt.Printf("Error in release '%s': %v\n", *release, err)
+		return
+	}
+	v.Release.Enterprise = !(*community)
+	fmt.Println(v)
+	err = v.Validate()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	var isWindows = v.OS == "win32"
+
 	switch flag.Arg(0) {
 	case "marshal":
 		fmt.Println("MongoDB Defaults applied")
@@ -73,28 +92,9 @@ func main() {
 			fmt.Printf("Error listing versions: %v\n", err)
 		}
 	case "get":
-		v := &version.Version{
-			Arch:   version.ArchType(*arch),
-			OS:     version.OSType(*myos),
-			Distro: version.DistroType(*distro),
-		}
-		var err error
-		v.Release, err = version.ToRelease(*release)
-		if err != nil {
-			fmt.Printf("Error in release '%s': %v\n", *release, err)
-			return
-		}
-		v.Release.Enterprise = !(*community)
-		fmt.Println(v)
-		err = v.Validate()
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return
-		}
 		err = getOneAndExpand(v)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
-			return
 		}
 	case "config":
 		var cfg config.Type
@@ -108,18 +108,24 @@ func main() {
 			fmt.Printf("Setup error: %v\n", err)
 		}
 	case "run":
+		loc, err := v.ToLocation()
+		if err != nil {
+			fmt.Printf("Error converting to filename: %v\n", loc)
+			break
+		}
+		fn := loc.Filename
 		mongoExt := ""
 		if isWindows {
 			mongoExt = ".exe"
 		}
-		runcmd := exec.Command(filepath.Join(binaryPath, "mongodb-win32-x86_64-enterprise-windows-64-4.2.8/bin/mongod"+mongoExt), "-f", filepath.Join(runtimePath, "sa.yaml"))
-		err := runcmd.Start()
+		runcmd := exec.Command(filepath.Join(binaryPath, fn, "bin", "mongod"+mongoExt), "-f", filepath.Join(runtimePath, "sa.yaml"))
+		err = runcmd.Start()
 		if err != nil {
 			fmt.Printf("Error ) MongoDB: %v\n", err)
 			break
 		}
 		fmt.Printf("Started!\n")
-		client, err := connectMongo()
+		client, err := connectMongo(false)
 		if err != nil {
 			fmt.Printf("Error connecting to server: %v\n", err)
 			break
@@ -135,6 +141,23 @@ func main() {
 			break
 		}
 		fmt.Printf("Successfully set up admin user!\n")
+	case "stop":
+		client, err := connectMongo(true)
+		if err != nil {
+			fmt.Printf("Error connecting to server: %v\n", err)
+			break
+		}
+		defer func() {
+			if err = client.Disconnect(context.Background()); err != nil {
+				panic(err)
+			}
+		}()
+		err = shutdownServer(client)
+		if err != nil {
+			fmt.Printf("Error shutting down server: %v\n", err)
+			break
+		}
+		fmt.Printf("Successfully shut down server!\n")
 	default:
 		printHelp()
 	}
@@ -151,12 +174,35 @@ func setupAdminUser(client *mongo.Client) error {
 	}
 	var result bson.M
 	_ = res.Decode(&result)
-	fmt.Printf("Created asmin user: \n%v\n", result)
+	fmt.Printf("Created admin user: \n%v\n", result)
 	return nil
 }
 
-func connectMongo() (*mongo.Client, error) {
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
+func shutdownServer(client *mongo.Client) error {
+	cmd := bson.D{{"shutdown", 1}}
+	db := client.Database("admin")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	res := db.RunCommand(ctx, cmd)
+	if res.Err() != nil {
+		return fmt.Errorf("error running shutdown command: %v", res.Err())
+	}
+	var result bson.M
+	_ = res.Decode(&result)
+	fmt.Printf("Shut down server: \n%v\n", result)
+	return nil
+}
+
+func connectMongo(auth bool) (*mongo.Client, error) {
+	copt := new(options.ClientOptions)
+	copt.Hosts = []string{"localhost:27017"}
+	if auth {
+		copt.Auth = &options.Credential{
+			Username: "admin",
+			Password: "tester",
+		}
+	}
+	client, err := mongo.NewClient(copt)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up client: %v", err)
 	}
@@ -199,8 +245,6 @@ func getOneAndExpand(v *version.Version) error {
 	//fmt.Println(myVersion2)
 	return nil
 }
-
-// https://downloads.mongodb.com/osx/mongodb-macos-x86_64-enterprise-4.2.8.tgz
 
 func listVersions() error {
 
