@@ -209,12 +209,10 @@ func ToRelease(rs string) (ReleaseType, error) {
 	if len(relements) != 5 {
 		return rt, fmt.Errorf("release string '%s' does not match the pattern", rs)
 	}
-	fmt.Println(relements)
 	rt.Version, _ = strconv.Atoi(relements[1]) // don't have to check errors; regex has already vetted the string
 	rt.Major, _ = strconv.Atoi(relements[2])
 	rt.Minor, _ = strconv.Atoi(relements[3])
 	rt.Modifier = relements[4]
-	fmt.Println(rt)
 	return rt, nil
 }
 

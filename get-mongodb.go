@@ -67,7 +67,6 @@ func main() {
 		return
 	}
 	v.Release.Enterprise = !(*community)
-	fmt.Println(v)
 	err = v.Validate()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -86,6 +85,18 @@ func main() {
 		cfg = config.OurDefaults
 		buf = cfg.ToYaml(isWindows)
 		_, _ = buf.WriteTo(os.Stdout)
+		fmt.Println("Unmarshaling back to config struct")
+		cfgbytes, err := ioutil.ReadFile(filepath.Join(runtimePath, "sa.yaml.gob"))
+		if err != nil {
+			fmt.Printf("Error reading GoB file %v\n", err)
+			break
+		}
+		cfg2, err := config.FromGoB(cfgbytes)
+		if err != nil {
+			fmt.Printf("Error unmarshaling GoB file %v\n", err)
+			break
+		}
+		fmt.Println(cfg2)
 	case "list":
 		err := listVersions()
 		if err != nil {

@@ -74,21 +74,22 @@ func init() {
 	OurDefaults = t2
 }
 
-// Write config file fname to fpath
-// Create directories for dbPath and log destination
+// Write config file fname to fpath, also writes fname.gob with the Go Binary representation of the config
+// Creates directories for config, dbPath and log destination
 func WriteConfig(x *Type, fpath string, fname string, isWindows bool) error {
 	res2 := x.ToYaml(isWindows)
+	// Create directories for config file
 	err := os.MkdirAll(fpath, 0777)
 	if err != nil {
-		return fmt.Errorf("MkDirAll error: %v", err)
+		return fmt.Errorf("config path MkDirAll error: %v", err)
 	}
+	// Write config file
 	fn := filepath.Join(fpath, fname)
 	fd, err := os.Create(fn)
 	if err != nil {
 		return fmt.Errorf("file create error: %v", err)
 	}
 	_, err = io.Copy(fd, res2)
-	//err = ioutil.WriteFile(filepath.Join(fpath, fname), []byte(res2), 0644)
 	if err != nil {
 		_ = fd.Close()
 		return fmt.Errorf("file write error: %v", err)
@@ -101,13 +102,39 @@ func WriteConfig(x *Type, fpath string, fname string, isWindows bool) error {
 	if err != nil {
 		return fmt.Errorf("Chmod error: %v", err)
 	}
+	// Create GoB file containing the Go struct for the config in binary format
+	fnameGoB := fname + ".gob"
+	fnGoB := filepath.Join(fpath, fnameGoB)
+	fdGoB, err := os.Create(fnGoB)
+	if err != nil {
+		return fmt.Errorf("GoB file create error: %v", err)
+	}
+	res3, err := x.ToGoB()
+	if err != nil {
+		return fmt.Errorf("GoB encode error: %v", err)
+	}
+	_, err = io.Copy(fdGoB, res3)
+	if err != nil {
+		_ = fdGoB.Close()
+		return fmt.Errorf("GoB file write error: %v", err)
+	}
+	err = fdGoB.Close()
+	if err != nil {
+		return fmt.Errorf("GoB file close error: %v", err)
+	}
+	err = os.Chmod(fnGoB, 0644)
+	if err != nil {
+		return fmt.Errorf("GoB Chmod error: %v", err)
+	}
+	// Create directories for dbPath
 	err = os.MkdirAll(x.Storage.DbPath, 0777)
 	if err != nil {
-		return fmt.Errorf("MkDirAll error: %v", err)
+		return fmt.Errorf("dbPath MkDirAll error: %v", err)
 	}
-	err = os.MkdirAll(filepath.Base(x.SystemLog.Path), 0777)
+	// Create directories for systemLog.path
+	err = os.MkdirAll(filepath.Dir(x.SystemLog.Path), 0777)
 	if err != nil {
-		return fmt.Errorf("MkDirAll error: %v", err)
+		return fmt.Errorf("logpath MkDirAll error: %v", err)
 	}
 	return nil
 }

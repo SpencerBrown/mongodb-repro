@@ -2,9 +2,33 @@ package config
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"reflect"
 )
+
+// write out a config in GoB (Go Binary)
+func (c *Type) ToGoB() (*bytes.Buffer, error) {
+	buf := new(bytes.Buffer)
+	enc := gob.NewEncoder(buf)
+	err := enc.Encode(c)
+	if err != nil {
+		return nil, fmt.Errorf("error encoding config: %v", err)
+	}
+	return buf, nil
+}
+
+// Read a GoB config in
+func FromGoB(in []byte) (*Type, error) {
+	buf := bytes.NewBuffer(in)
+	dec := gob.NewDecoder(buf)
+	cfg := new(Type)
+	err := dec.Decode(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding config: %v", err)
+	}
+	return cfg, nil
+}
 
 // write out a config in YAML
 func (c *Type) ToYaml(isWindows bool) *bytes.Buffer {
