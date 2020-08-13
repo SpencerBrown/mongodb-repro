@@ -36,8 +36,8 @@ type Type struct {
 		BindIp           string   // default is "127.0.0.1"
 		Ipv6             bool     // default is false
 		UnixDomainSocket struct { // not valid on Windows
-			Enabled bool `default:"true"` // default is true
-		} `omitwindows:"true"`
+			Enabled bool `default:"true" omitwindows:"true"` // default is true
+		}
 	}
 
 	ProcessManagement struct {

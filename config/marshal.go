@@ -105,7 +105,12 @@ func checkStruct(val *reflect.Value) bool {
 
 // Check if a struct field is the default value or not, return true if it is
 // the default value is the zero value unless there is a tag on the struct field specifying a different default
+// if there is an omitwindows tag on the field, just say it's the default value
 func isDefault(val *reflect.Value, field *reflect.StructField) (ret bool) {
+	_, ok := field.Tag.Lookup("omitwindows")
+	if ok {
+		return true
+	}
 	def, ok := field.Tag.Lookup("default")
 	if ok {
 		switch field.Type.Kind() {
