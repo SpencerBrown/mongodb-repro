@@ -46,16 +46,17 @@ func printStruct(leader string, val *reflect.Value, buf *bytes.Buffer, isWindows
 		sv := val.Field(i)
 		sf := tval.Field(i)
 		sn := sf.Name
+		// If field is tagged omitwindows and we are on Windows, don't write it at all
+		_, ok := sf.Tag.Lookup("omitwindows")
+		if ok && isWindows {
+			continue
+		}
 		snl := string(sn[0]+('a'-'A')) + sn[1:] // lowercase first letter
 		switch sf.Type.Kind() {
 		case reflect.Struct:
-			// If struct is tagged omitwindows and we are on Windows, don't write it at all
-			_, ok := sf.Tag.Lookup("omitwindows")
-			if !(ok && isWindows) {
-				if checkStruct(&sv) {
-					_, _ = fmt.Fprintf(buf, "%s%s:\n", leader, snl)
-					printStruct(leader+"  ", &sv, buf, isWindows)
-				}
+			if checkStruct(&sv, isWindows) {
+				_, _ = fmt.Fprintf(buf, "%s%s:\n", leader, snl)
+				printStruct(leader+"  ", &sv, buf, isWindows)
 			}
 		case reflect.Bool:
 			if !isDefault(&sv, &sf) {
@@ -81,16 +82,20 @@ func printStruct(leader string, val *reflect.Value, buf *bytes.Buffer, isWindows
 
 // Check if struct needs to be put into the YAML output. If it has all sub-elements with values that should not be output, return false, otherwise return true
 // this a lookahead when we encounter a struct field
-func checkStruct(val *reflect.Value) bool {
+func checkStruct(val *reflect.Value, isWindows bool) bool {
 	ret := false
 	tval := val.Type()
 	nval := val.NumField()
 	for i := 0; i < nval; i++ {
 		sf := tval.Field(i)
 		sv := val.Field(i)
+		_, ok := sf.Tag.Lookup("omitwindows")
+		if ok && isWindows {
+			return false
+		}
 		switch sf.Type.Kind() {
 		case reflect.Struct:
-			ret = checkStruct(&sv)
+			ret = checkStruct(&sv, isWindows)
 		case reflect.Bool, reflect.String, reflect.Uint, reflect.Float32:
 			ret = !isDefault(&sv, &sf)
 		default:
@@ -105,12 +110,7 @@ func checkStruct(val *reflect.Value) bool {
 
 // Check if a struct field is the default value or not, return true if it is
 // the default value is the zero value unless there is a tag on the struct field specifying a different default
-// if there is an omitwindows tag on the field, just say it's the default value
 func isDefault(val *reflect.Value, field *reflect.StructField) (ret bool) {
-	_, ok := field.Tag.Lookup("omitwindows")
-	if ok {
-		return true
-	}
 	def, ok := field.Tag.Lookup("default")
 	if ok {
 		switch field.Type.Kind() {

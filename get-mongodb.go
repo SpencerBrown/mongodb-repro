@@ -112,7 +112,8 @@ func main() {
 		cfg = *config.OurDefaults // makes a copy so we don't pollute the static global variable. This makes a full copy because we don't have any reference types in the struct.
 		cfg.Storage.DbPath = filepath.Join(runtimePath, "data")
 		cfg.SystemLog.Path = filepath.Join(runtimePath, "sa.log")
-		cfg.ProcessManagement.Fork = true
+		//cfg.ProcessManagement.Fork = true
+		//isWindows = true
 		err := config.WriteConfig(&cfg, runtimePath, "sa.yaml", isWindows)
 		if err == nil {
 			fmt.Printf("Configuration complete!\n")
