@@ -1,8 +1,7 @@
-package main
+package cmds
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"github.com/SpencerBrown/mongodb-repro/config"
 	"github.com/SpencerBrown/mongodb-repro/get"
@@ -38,44 +37,9 @@ func getPath(dir string) string {
 	return filepath.Join(homedir, dir)
 }
 
-func main() {
+func Cmds(cmd string, v *version.Version, isWindows bool) error {
 
-	var arch = flag.String("arch", "x86_64", "Architecture: x86_64 (default), aarch64, ppc64le, s390x")
-	//var a_arch = flag.String("a", "x86_64", "(short for 'arch')")
-	var myos = flag.String("os", "linux", "OS: linux (default), macos, win32")
-	//var a_myos = flag.String("o", "linux", "(short for 'os')")
-	var distro = flag.String("distro", "ubuntu1604", "Linux distro")
-	var release = flag.String("version", "4.2.9", "MongoDB version")
-	var community = flag.Bool("community", false, "Community version?")
-
-	flag.Parse()
-
-	if flag.NArg() != 1 {
-		printHelp()
-		return
-	}
-
-	v := &version.Version{
-		Arch:   version.ArchType(*arch),
-		OS:     version.OSType(*myos),
-		Distro: version.DistroType(*distro),
-	}
-	var err error
-	v.Release, err = version.ToRelease(*release)
-	if err != nil {
-		fmt.Printf("Error in release '%s': %v\n", *release, err)
-		return
-	}
-	v.Release.Enterprise = !(*community)
-	err = v.Validate()
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	var isWindows = v.OS == "win32"
-
-	switch flag.Arg(0) {
+	switch cmd {
 	case "marshal":
 		fmt.Println("MongoDB Defaults applied")
 		cfg := config.MongoDBDefaults
@@ -103,7 +67,7 @@ func main() {
 			fmt.Printf("Error listing versions: %v\n", err)
 		}
 	case "get":
-		err = getOneAndExpand(v)
+		err := getOneAndExpand(v)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}
@@ -172,8 +136,9 @@ func main() {
 		}
 		fmt.Printf("Successfully shut down server!\n")
 	default:
-		printHelp()
+		fmt.Printf("Unrecognized command %s\n", cmd)
 	}
+	return nil
 }
 
 func setupAdminUser(client *mongo.Client) error {
@@ -233,12 +198,6 @@ func connectMongo(auth bool) (*mongo.Client, error) {
 		return nil, fmt.Errorf("error pinging: %v", err)
 	}
 	return client, nil
-}
-
-func printHelp() {
-	fmt.Printf("%s list - lists currently downloaded versions\n", os.Args[0])
-	fmt.Printf("%s get - downloads a version\n", os.Args[0])
-	flag.PrintDefaults()
 }
 
 func getOneAndExpand(v *version.Version) error {
