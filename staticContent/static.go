@@ -8,10 +8,14 @@ const Struct_html = `<html lang="en">
     <title>Edit a struct</title>
 </head>
 <body>
-<form>
-    <label>Field:
-        <input type="text" name="field">
-    </label>
+<h1>Edit Configuration</h1>
+<!--suppress HtmlUnknownTarget -->
+<form action="/changes" method="post">
+    <label for="field">Field:</label>
+    <input type="text" name="field" id="field" value="this?">
+    <p>
+        <button type="submit" name="quit">QUIT</button>
+    </p>
 </form>
 </body>
 </html>`
